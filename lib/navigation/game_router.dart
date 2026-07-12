@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../games/animals/animals_game_screen.dart';
 import '../games/coloring/coloring_home_screen.dart';
 import '../models/content_item.dart';
 import '../theme/app_theme.dart';
@@ -11,6 +12,12 @@ class GameRouter {
         Navigator.of(context).push(
           MaterialPageRoute(
             builder: (_) => const ColoringHomeScreen(),
+          ),
+        );
+      case GameId.animals:
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => const AnimalsGameScreen(),
           ),
         );
       case GameId.comingSoon:
@@ -40,7 +47,7 @@ class GameRouter {
             ],
           ),
           content: const Text(
-            '¡Este juego estará listo muy pronto!\n\nPor ahora puedes jugar a Colorea y Pinta.',
+            '¡Este juego estará listo muy pronto!\n\nPor ahora puedes jugar a Colorea y Pinta o Sonidos de Animales.',
             style: TextStyle(color: AppTheme.textSecondary, height: 1.4),
           ),
           actions: [
@@ -53,11 +60,11 @@ class GameRouter {
                 Navigator.pop(context);
                 Navigator.of(context).push(
                   MaterialPageRoute(
-                    builder: (_) => const ColoringHomeScreen(),
+                    builder: (_) => const AnimalsGameScreen(),
                   ),
                 );
               },
-              child: const Text('Ir a colorear'),
+              child: const Text('Sonidos de animales'),
             ),
           ],
         );

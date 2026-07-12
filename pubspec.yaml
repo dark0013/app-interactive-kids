@@ -37,6 +37,7 @@ dependencies:
   image: ^4.9.1
   path_provider: ^2.1.6
   gal: ^2.3.2
+  audioplayers: ^6.8.1
 
 dev_dependencies:
   flutter_test:
@@ -62,6 +63,7 @@ flutter:
 
   assets:
     - assets/coloring/
+    - assets/sounds/animals/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

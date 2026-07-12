@@ -1,6 +1,7 @@
 /// Identificador del juego que abre la app al tocar un ítem del menú.
 enum GameId {
   coloring,
+  animals,
   comingSoon,
 }
 
