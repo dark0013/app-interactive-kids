@@ -5,8 +5,29 @@ import 'built_in_drawings.dart';
 import 'coloring_game_screen.dart';
 
 /// Galería: el niño elige qué dibujo quiere pintar.
-class ColoringHomeScreen extends StatelessWidget {
+/// Las imágenes de assets/coloring/ se cargan solas (cualquier formato).
+class ColoringHomeScreen extends StatefulWidget {
   const ColoringHomeScreen({super.key});
+
+  @override
+  State<ColoringHomeScreen> createState() => _ColoringHomeScreenState();
+}
+
+class _ColoringHomeScreenState extends State<ColoringHomeScreen> {
+  late Future<({List<ColoringPage> assets, List<ColoringPage> all})> _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = ColoringPages.loadAll();
+  }
+
+  Future<void> _reload() async {
+    setState(() {
+      _future = ColoringPages.loadAll(forceReload: true);
+    });
+    await _future;
+  }
 
   void _open(BuildContext context, ColoringPage page) {
     Navigator.of(context).push(
@@ -18,9 +39,6 @@ class ColoringHomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final pages = ColoringPages.all;
-    final assets = ColoringPages.assetImages;
-
     return Scaffold(
       backgroundColor: AppTheme.background,
       appBar: AppBar(
@@ -29,57 +47,111 @@ class ColoringHomeScreen extends StatelessWidget {
           '🎨 Colorea y Pinta',
           style: TextStyle(fontWeight: FontWeight.w800),
         ),
+        actions: [
+          IconButton(
+            tooltip: 'Actualizar dibujos',
+            onPressed: _reload,
+            icon: const Icon(Icons.refresh_rounded),
+          ),
+        ],
       ),
-      body: CustomScrollView(
-        slivers: [
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Elige un dibujo',
-                    style: Theme.of(context).textTheme.headlineMedium,
+      body: FutureBuilder<({List<ColoringPage> assets, List<ColoringPage> all})>(
+        future: _future,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(
+              child: CircularProgressIndicator(color: AppTheme.netflixRed),
+            );
+          }
+
+          if (snapshot.hasError) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('😕', style: TextStyle(fontSize: 48)),
+                    const SizedBox(height: 12),
+                    Text(
+                      'No se pudieron cargar los dibujos',
+                      style: Theme.of(context).textTheme.titleLarge,
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '${snapshot.error}',
+                      style: Theme.of(context).textTheme.bodyMedium,
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: _reload,
+                      child: const Text('Reintentar'),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }
+
+          final assets = snapshot.data?.assets ?? const <ColoringPage>[];
+          final builtIn = ColoringPages.builtIn;
+
+          return RefreshIndicator(
+            color: AppTheme.netflixRed,
+            onRefresh: _reload,
+            child: CustomScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              slivers: [
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Elige un dibujo',
+                          style: Theme.of(context).textTheme.headlineMedium,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          assets.isEmpty
+                              ? 'Pon imágenes en assets/coloring/ (jpg, png, gif, webp…) y reinicia la app.'
+                              : '${assets.length} dibujos listos. Toca uno para pintar.',
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    assets.isEmpty
-                        ? 'Pon tus imágenes en assets/coloring/ y regístralas en coloring_pages.dart. Mientras tanto puedes pintar estos dibujos.'
-                        : 'Toca un dibujo para empezar a pintar con los dedos.',
-                    style: Theme.of(context).textTheme.bodyMedium,
+                ),
+                if (assets.isNotEmpty) ...[
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
+                      child: Text(
+                        'Tus dibujos',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                    ),
+                  ),
+                  _grid(context, assets),
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+                      child: Text(
+                        'Más dibujos',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                    ),
                   ),
                 ],
-              ),
+                _grid(context, builtIn),
+                const SliverToBoxAdapter(child: SizedBox(height: 32)),
+              ],
             ),
-          ),
-          if (assets.isNotEmpty) ...[
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
-                child: Text(
-                  'Tus dibujos',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-              ),
-            ),
-            _grid(context, assets),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
-                child: Text(
-                  'Más dibujos',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-              ),
-            ),
-          ],
-          _grid(
-            context,
-            assets.isNotEmpty ? ColoringPages.builtIn : pages,
-          ),
-          const SliverToBoxAdapter(child: SizedBox(height: 32)),
-        ],
+          );
+        },
       ),
     );
   }
@@ -145,17 +217,33 @@ class _PageCardState extends State<_PageCard> {
               Expanded(
                 child: Container(
                   color: Colors.white,
-                  padding: const EdgeInsets.all(10),
+                  padding: const EdgeInsets.all(8),
                   child: widget.page.assetPath != null
                       ? Image.asset(
                           widget.page.assetPath!,
                           fit: BoxFit.contain,
-                          errorBuilder: (_, error, stackTrace) => Center(
-                            child: Text(
-                              widget.page.emoji,
-                              style: const TextStyle(fontSize: 48),
-                            ),
-                          ),
+                          errorBuilder: (context, error, stackTrace) {
+                            // Formato no soportado por el motor (p. ej. AVIF en algunos SO)
+                            return Center(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    widget.page.emoji,
+                                    style: const TextStyle(fontSize: 40),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Toca para intentar',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      color: Colors.black.withValues(alpha: 0.45),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
                         )
                       : CustomPaint(
                           painter: BuiltInDrawingPainter(
@@ -170,8 +258,10 @@ class _PageCardState extends State<_PageCard> {
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
                 child: Row(
                   children: [
-                    Text(widget.page.emoji,
-                        style: const TextStyle(fontSize: 18)),
+                    Text(
+                      widget.page.emoji,
+                      style: const TextStyle(fontSize: 18),
+                    ),
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(
@@ -181,7 +271,7 @@ class _PageCardState extends State<_PageCard> {
                         style: const TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.w700,
-                          fontSize: 14,
+                          fontSize: 13,
                         ),
                       ),
                     ),
