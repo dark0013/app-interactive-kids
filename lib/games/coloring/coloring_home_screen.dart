@@ -96,10 +96,6 @@ class _ColoringHomeScreenState extends State<ColoringHomeScreen> {
           }
 
           final assets = snapshot.data?.assets ?? const <ColoringPage>[];
-          // Sin el lienzo en blanco (va destacado arriba)
-          final builtIn = ColoringPages.builtIn
-              .where((p) => !p.isBlank)
-              .toList();
 
           return RefreshIndicator(
             color: AppTheme.netflixRed,
@@ -148,26 +144,7 @@ class _ColoringHomeScreenState extends State<ColoringHomeScreen> {
                     ),
                   ),
                   _grid(context, assets),
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
-                      child: Text(
-                        'Más dibujos',
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
-                    ),
-                  ),
-                ] else
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
-                      child: Text(
-                        'Más dibujos',
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
-                    ),
-                  ),
-                _grid(context, builtIn),
+                ],
                 const SliverToBoxAdapter(child: SizedBox(height: 32)),
               ],
             ),
