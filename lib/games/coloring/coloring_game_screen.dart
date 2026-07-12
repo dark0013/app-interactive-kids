@@ -1,4 +1,13 @@
+import 'dart:io';
+import 'dart:ui' as ui;
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'package:gal/gal.dart';
+import 'package:image/image.dart' as img;
+import 'package:path_provider/path_provider.dart';
+
 import '../../data/coloring_pages.dart';
 import '../../theme/app_theme.dart';
 import 'blend_mask.dart';
@@ -29,12 +38,14 @@ class _ColoringGameScreenState extends State<ColoringGameScreen> {
     Color(0xFFFFFFFF), // blanco (pintar)
   ];
 
+  final GlobalKey _canvasKey = GlobalKey();
   final List<PaintStroke> _strokes = [];
   final List<List<PaintStroke>> _undoStack = [];
 
   Color _color = const Color(0xFFE53935);
   double _brushSize = 28;
   bool _eraser = false;
+  bool _saving = false;
   PaintStroke? _current;
 
   void _pushUndo() {
@@ -94,9 +105,131 @@ class _ColoringGameScreenState extends State<ColoringGameScreen> {
     });
   }
 
+  Future<void> _saveAsJpg() async {
+    if (_saving) return;
+
+    setState(() => _saving = true);
+    try {
+      // Deja que el frame actual termine de pintar el lienzo.
+      await Future<void>.delayed(Duration.zero);
+      await WidgetsBinding.instance.endOfFrame;
+
+      final boundary =
+          _canvasKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+      if (boundary == null) {
+        _showMessage('No se pudo capturar el dibujo', isError: true);
+        return;
+      }
+
+      final ui.Image image = await boundary.toImage(pixelRatio: 3);
+      final byteData =
+          await image.toByteData(format: ui.ImageByteFormat.png);
+      image.dispose();
+
+      if (byteData == null) {
+        _showMessage('No se pudo generar la imagen', isError: true);
+        return;
+      }
+
+      final pngBytes = byteData.buffer.asUint8List();
+      final decoded = img.decodePng(pngBytes);
+      if (decoded == null) {
+        _showMessage('No se pudo convertir a JPG', isError: true);
+        return;
+      }
+
+      final jpgBytes = img.encodeJpg(decoded, quality: 92);
+      final stamp = DateTime.now().millisecondsSinceEpoch;
+      final fileName = 'dibujo_$stamp';
+
+      final result = await _persistJpg(jpgBytes, fileName);
+      if (!mounted) return;
+
+      if (result.ok) {
+        _showMessage(result.message);
+      } else {
+        _showMessage(result.message, isError: true);
+      }
+    } catch (e) {
+      if (!mounted) return;
+      _showMessage('Error al guardar: $e', isError: true);
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  /// Guarda en la galería (móvil) o en una carpeta del dispositivo (desktop).
+  Future<({bool ok, String message})> _persistJpg(
+    List<int> jpgBytes,
+    String fileName,
+  ) async {
+    final bytes = Uint8List.fromList(jpgBytes);
+
+    // Galería del teléfono / tablet
+    if (!kIsWeb &&
+        (defaultTargetPlatform == TargetPlatform.android ||
+            defaultTargetPlatform == TargetPlatform.iOS)) {
+      try {
+        final hasAccess = await Gal.hasAccess(toAlbum: true);
+        if (!hasAccess) {
+          final granted = await Gal.requestAccess(toAlbum: true);
+          if (!granted) {
+            return (
+              ok: false,
+              message: 'Necesitamos permiso para guardar en la galería',
+            );
+          }
+        }
+        await Gal.putImageBytes(bytes, name: fileName);
+        return (ok: true, message: '¡Dibujo guardado en la galería! 📷');
+      } catch (_) {
+        // Continúa con guardado en archivo
+      }
+    }
+
+    // Desktop / fallback: carpeta de documentos o descargas
+    if (kIsWeb) {
+      return (ok: false, message: 'Guardar en web no está disponible aún');
+    }
+
+    try {
+      Directory? dir;
+      try {
+        dir = await getDownloadsDirectory();
+      } catch (_) {
+        dir = null;
+      }
+      dir ??= await getApplicationDocumentsDirectory();
+
+      final file = File('${dir.path}${Platform.pathSeparator}$fileName.jpg');
+      await file.writeAsBytes(bytes, flush: true);
+      return (ok: true, message: '¡Guardado!\n${file.path}');
+    } catch (_) {
+      return (ok: false, message: 'No se pudo guardar el dibujo');
+    }
+  }
+
+  void _showMessage(String message, {bool isError = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          message,
+          style: const TextStyle(fontWeight: FontWeight.w600),
+        ),
+        backgroundColor:
+            isError ? const Color(0xFFC62828) : const Color(0xFF2E7D32),
+        behavior: SnackBarBehavior.floating,
+        duration: Duration(seconds: isError ? 4 : 3),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final bottomPad = MediaQuery.paddingOf(context).bottom;
+    final isBlank = widget.page.isBlank;
 
     return Scaffold(
       backgroundColor: const Color(0xFFFFF8E7),
@@ -118,6 +251,20 @@ class _ColoringGameScreenState extends State<ColoringGameScreen> {
         ),
         actions: [
           IconButton(
+            tooltip: 'Guardar JPG',
+            onPressed: _saving ? null : _saveAsJpg,
+            icon: _saving
+                ? const SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.5,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Icon(Icons.save_alt_rounded),
+          ),
+          IconButton(
             tooltip: 'Deshacer',
             onPressed: _undoStack.isEmpty ? null : _undo,
             icon: const Icon(Icons.undo_rounded),
@@ -131,6 +278,25 @@ class _ColoringGameScreenState extends State<ColoringGameScreen> {
       ),
       body: Column(
         children: [
+          if (isBlank)
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFE3F2FD),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFF90CAF9)),
+              ),
+              child: const Text(
+                '✏️ Lienzo libre — dibuja lo que quieras',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF1565C0),
+                ),
+              ),
+            ),
           // Lienzo
           Expanded(
             child: Container(
@@ -164,23 +330,27 @@ class _ColoringGameScreenState extends State<ColoringGameScreen> {
                         _onStart(d.localPosition);
                         _onEnd();
                       },
-                      child: Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          const ColoredBox(color: Colors.white),
-                          // Pintura debajo del contorno
-                          CustomPaint(
-                            painter: StrokesPainter(strokes: _strokes),
-                            size: Size(
-                              constraints.maxWidth,
-                              constraints.maxHeight,
+                      child: RepaintBoundary(
+                        key: _canvasKey,
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            const ColoredBox(color: Colors.white),
+                            // Pintura debajo del contorno
+                            CustomPaint(
+                              painter: StrokesPainter(strokes: _strokes),
+                              size: Size(
+                                constraints.maxWidth,
+                                constraints.maxHeight,
+                              ),
                             ),
-                          ),
-                          // Contorno / imagen (no recibe toques)
-                          IgnorePointer(
-                            child: _OutlineLayer(page: widget.page),
-                          ),
-                        ],
+                            // Contorno / imagen (no recibe toques)
+                            if (!isBlank)
+                              IgnorePointer(
+                                child: _OutlineLayer(page: widget.page),
+                              ),
+                          ],
+                        ),
                       ),
                     );
                   },
@@ -205,9 +375,38 @@ class _ColoringGameScreenState extends State<ColoringGameScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Tamaño pincel
+                // Guardar + grosor
                 Row(
                   children: [
+                    FilledButton.icon(
+                      onPressed: _saving ? null : _saveAsJpg,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppTheme.netflixRed,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 10,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      icon: _saving
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Icon(Icons.download_rounded, size: 20),
+                      label: Text(
+                        _saving ? 'Guardando…' : 'Guardar JPG',
+                        style: const TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
                     const Text(
                       'Grosor',
                       style: TextStyle(
@@ -282,6 +481,10 @@ class _OutlineLayer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (page.isBlank) {
+      return const SizedBox.shrink();
+    }
+
     if (page.assetPath != null) {
       // multiply: el blanco deja ver la pintura; las líneas negras se mantienen
       return BlendMask(

@@ -96,7 +96,10 @@ class _ColoringHomeScreenState extends State<ColoringHomeScreen> {
           }
 
           final assets = snapshot.data?.assets ?? const <ColoringPage>[];
-          final builtIn = ColoringPages.builtIn;
+          // Sin el lienzo en blanco (va destacado arriba)
+          final builtIn = ColoringPages.builtIn
+              .where((p) => !p.isBlank)
+              .toList();
 
           return RefreshIndicator(
             color: AppTheme.netflixRed,
@@ -125,6 +128,15 @@ class _ColoringHomeScreenState extends State<ColoringHomeScreen> {
                     ),
                   ),
                 ),
+                // Lienzo en blanco destacado
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+                    child: _BlankCanvasCard(
+                      onTap: () => _open(context, ColoringPages.blankCanvas),
+                    ),
+                  ),
+                ),
                 if (assets.isNotEmpty) ...[
                   SliverToBoxAdapter(
                     child: Padding(
@@ -145,7 +157,16 @@ class _ColoringHomeScreenState extends State<ColoringHomeScreen> {
                       ),
                     ),
                   ),
-                ],
+                ] else
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
+                      child: Text(
+                        'Más dibujos',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                    ),
+                  ),
                 _grid(context, builtIn),
                 const SliverToBoxAdapter(child: SizedBox(height: 32)),
               ],
@@ -175,6 +196,116 @@ class _ColoringHomeScreenState extends State<ColoringHomeScreen> {
             );
           },
           childCount: pages.length,
+        ),
+      ),
+    );
+  }
+}
+
+/// Tarjeta grande para dibujar libremente en un lienzo vacío.
+class _BlankCanvasCard extends StatefulWidget {
+  final VoidCallback onTap;
+
+  const _BlankCanvasCard({required this.onTap});
+
+  @override
+  State<_BlankCanvasCard> createState() => _BlankCanvasCardState();
+}
+
+class _BlankCanvasCardState extends State<_BlankCanvasCard> {
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: (_) => setState(() => _pressed = true),
+      onTapUp: (_) => setState(() => _pressed = false),
+      onTapCancel: () => setState(() => _pressed = false),
+      onTap: widget.onTap,
+      child: AnimatedScale(
+        scale: _pressed ? 0.98 : 1,
+        duration: const Duration(milliseconds: 120),
+        child: Container(
+          height: 120,
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFFFFF8E7), Color(0xFFFFE0B2)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: AppTheme.netflixRed.withValues(alpha: 0.45), width: 2),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.18),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              const SizedBox(width: 18),
+              Container(
+                width: 72,
+                height: 72,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: Colors.black12, width: 2),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.08),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: const Center(
+                  child: Text('✏️', style: TextStyle(fontSize: 34)),
+                ),
+              ),
+              const SizedBox(width: 16),
+              const Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Lienzo en blanco',
+                      style: TextStyle(
+                        color: Color(0xFF212121),
+                        fontWeight: FontWeight.w900,
+                        fontSize: 18,
+                      ),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      'Dibuja libremente lo que imagines',
+                      style: TextStyle(
+                        color: Color(0xFF555555),
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                margin: const EdgeInsets.only(right: 16),
+                padding: const EdgeInsets.all(10),
+                decoration: const BoxDecoration(
+                  color: AppTheme.netflixRed,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.brush_rounded,
+                  color: Colors.white,
+                  size: 22,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

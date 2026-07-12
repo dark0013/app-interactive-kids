@@ -12,12 +12,16 @@ class ColoringPage {
   /// Clave del dibujo integrado (solo si [assetPath] es null).
   final String? builtInId;
 
+  /// Lienzo vacío para dibujar libremente (sin contorno).
+  final bool isBlank;
+
   const ColoringPage({
     required this.id,
     required this.title,
     required this.emoji,
     this.assetPath,
     this.builtInId,
+    this.isBlank = false,
   });
 
   bool get isAsset => assetPath != null;
@@ -72,8 +76,17 @@ class ColoringPages {
     'wonder-day-plim-plim-coloring-pages-6': ('Plim Plim 2', '🎪'),
   };
 
+  /// Lienzo vacío para dibujo libre.
+  static const ColoringPage blankCanvas = ColoringPage(
+    id: 'blank',
+    title: 'Lienzo en blanco',
+    emoji: '✏️',
+    isBlank: true,
+  );
+
   /// Dibujos vectoriales de la app (siempre disponibles).
   static const List<ColoringPage> builtIn = [
+    blankCanvas,
     ColoringPage(
       id: 'house',
       title: 'Casita',
